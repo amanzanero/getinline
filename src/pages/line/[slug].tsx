@@ -3,7 +3,7 @@
  */
 
 import { useSession } from "next-auth/react";
-import { NavLayout } from "../client/layouts/NavLayout";
+import { NavLayout } from "../../client/layouts/NavLayout";
 
 const Line = () => {
   const {} = useSession({ required: true });

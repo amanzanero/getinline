@@ -11,7 +11,10 @@ const Home: NextPage = () => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <NavLayout>
-        <main className="py-5"></main>
+        <main className="flex justify-around py-5">
+          <button>Create a Line</button>
+          <button>Join a Line</button>
+        </main>
       </NavLayout>
     </>
   );
