@@ -33,17 +33,12 @@ const Create: NextPage = () => {
     <>
       <Head>
         <title>Create Line - GetInLine</title>
-        <meta
-          name="description"
-          content="Create a virtual line for your event or meeting"
-        />
+        <meta name="description" content="Create a virtual line for your event or meeting" />
       </Head>
       <NavLayout>
         {isAuthed ? (
           <main className="py-5">
-            <h1 className="text-center text-2xl font-bold text-base-content">
-              Create a new Line
-            </h1>
+            <h1 className="text-center text-2xl font-bold text-base-content">Create a new Line</h1>
             <form
               className="translate my-4 mx-auto flex max-w-screen-md flex-col items-center rounded-lg bg-base-200 p-4"
               onSubmit={handleSubmit(onSubmit)}

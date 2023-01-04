@@ -86,6 +86,9 @@ model Position {
   line   Line   @relation(fields: [lineId], references: [id])
   lineId String
 
-  rank Int
-  name String
+  rank        Int
+  name        String
+  phoneNumber String
+
+  @@unique([lineId, phoneNumber])
 }
