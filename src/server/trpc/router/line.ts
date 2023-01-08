@@ -55,7 +55,7 @@ export const lineRouter = router({
       if (!!existingPosition) {
         return existingPosition;
       }
-      await ctx.prisma.$transaction(async (tx) => {
+      const createdPosition = await ctx.prisma.$transaction(async (tx) => {
         const line = await tx.line.update({
           where: { id: existingLine.id },
           data: {
@@ -79,5 +79,6 @@ export const lineRouter = router({
           },
         });
       });
+      return createdPosition;
     }),
 });

@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { NavLayout } from "../../../client/layouts/NavLayout";
 import { trpc } from "../../../utils/trpc";
+import { useLocalLineState } from "../../../client/localLineState";
 
 type Inputs = {
   name: string;
@@ -16,27 +17,34 @@ type Inputs = {
 const Join: NextPage = () => {
   const router = useRouter();
   const { slug } = router.query;
-  const { status } = useSession({ required: false });
+  const { status, data: session } = useSession({ required: false });
   const { data: line, error } = trpc.line.getBySlug.useQuery(
     {
       slug: slug as string,
     },
     { enabled: !!slug },
   );
+  const { joinLine } = useLocalLineState({ lineId: line?.id });
 
   // prevent owners from trying to join the line
   useEffect(() => {
-    if (status === "authenticated" && !!line) {
+    if (
+      status === "authenticated" &&
+      !!session.user &&
+      !!line &&
+      line.ownerId === session.user.id
+    ) {
       router.push(`/line/${line.slug}`);
     }
-  }, [status, line, router]);
+  }, [status, line, router, session]);
 
   const {
     mutate,
     isLoading,
     error: mutationError,
   } = trpc.line.join.useMutation({
-    onSuccess: () => {
+    onSuccess: (p) => {
+      joinLine(p);
       router.push(`/line/${slug}`);
     },
   });

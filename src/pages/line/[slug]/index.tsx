@@ -5,21 +5,35 @@
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 import { NavLayout } from "../../../client/layouts/NavLayout";
+import { useLocalLineState } from "../../../client/localLineState";
 import { trpc } from "../../../utils/trpc";
 
 const Line = () => {
   const router = useRouter();
   const { slug } = router.query;
   const { data: session, status } = useSession({ required: false });
-  const { data: line, error } = trpc.line.getBySlug.useQuery(
+  const {
+    data: line,
+    error,
+    isLoading: isLineLoading,
+  } = trpc.line.getBySlug.useQuery(
     {
       slug: slug as string,
     },
     { enabled: !!slug },
   );
 
+  const { isInLine, flushLines } = useLocalLineState({ lineId: line?.id });
+
   const isOwner = line?.ownerId === session?.user?.id;
+
+  useEffect(() => {
+    if (!isLineLoading && line) {
+      flushLines(line.id, line.positions);
+    }
+  }, [flushLines, isLineLoading, line]);
 
   const Content = () => {
     if (!!error) {
@@ -37,7 +51,7 @@ const Line = () => {
             Virtual line: <span className="font-bold">{line.name}</span>
           </h1>
           <div>
-            {!isOwner && (
+            {!isOwner && !isInLine && (
               <Link href={`/line/${line.slug}/join`}>
                 <button className="btn-secondary btn mt-3 sm:mt-5">Join the line</button>
               </Link>
