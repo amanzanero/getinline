@@ -7,13 +7,17 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { NavLayout } from "../../../client/layouts/NavLayout";
-import { useLocalLineState } from "../../../client/localLineState";
+import { useLocalLine } from "../../../client/localLineState";
+import { usePusher } from "../../../client/pusherWebClient";
 import { trpc } from "../../../utils/trpc";
 
 const Line = () => {
   const router = useRouter();
   const { slug } = router.query;
+  const utils = trpc.useContext();
+
   const { data: session, status } = useSession({ required: false });
+  // query
   const {
     data: line,
     error,
@@ -22,18 +26,46 @@ const Line = () => {
     {
       slug: slug as string,
     },
-    { enabled: !!slug },
+    {
+      enabled: !!slug,
+      onSuccess(data) {
+        if (data) {
+          console.log({ data });
+          flushLines(data.id, data.positions);
+        }
+      },
+    },
   );
 
-  const { isInLine, flushLines } = useLocalLineState({ lineId: line?.id });
+  const { isInLine, flushLines } = useLocalLine({ lineId: line?.id });
+
+  // mutation
+  const { mutate: removeFromLine, isLoading: isRemoving } = trpc.line.removeFromLine.useMutation({
+    onMutate(vars) {
+      if (line) {
+        utils.line.getBySlug.setData(
+          { slug: slug as string },
+          { ...line, positions: line.positions.filter((p) => p.id != vars.positionId) },
+        );
+      }
+    },
+    onSettled() {
+      utils.line.getBySlug.invalidate();
+    },
+  });
 
   const isOwner = line?.ownerId === session?.user?.id;
 
-  useEffect(() => {
-    if (!isLineLoading && line) {
-      flushLines(line.id, line.positions);
-    }
-  }, [flushLines, isLineLoading, line]);
+  usePusher({
+    channelId: line?.id,
+    enabled: true,
+    eventName: isOwner ? "position-added" : "position-removed",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+    onEvent(_incomingData: any) {
+      utils.line.getBySlug.invalidate();
+      console.log({ _incomingData });
+    },
+  });
 
   const Content = () => {
     if (!!error) {
@@ -57,15 +89,49 @@ const Line = () => {
               </Link>
             )}
             <h2 className="my-5 text-xl text-base-content">Members in line:</h2>
-            <ul>
+            <ul className="space-y-5">
               {line.positions.length === 0 ? (
-                <li className="italic">No members in line yet</li>
+                <div className="italic">No members in line yet</div>
               ) : (
-                line.positions.map((position, i) => (
-                  <div key={position.id}>
-                    {i + 1}. {position.name}
-                  </div>
-                ))
+                <div className="overflow-x-auto">
+                  <table className="table w-full">
+                    <thead>
+                      <tr>
+                        <th>Place in line</th>
+                        <th>Name</th>
+                        <th># People</th>
+                        {isOwner && <th></th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {line.positions.map((position, i) => (
+                        <tr className="hover" key={position.id}>
+                          <th>{i + 1}</th>
+                          <td>{position.name}</td>
+                          <td>1</td>
+                          {isOwner && (
+                            <td>
+                              {i === 0 && (
+                                <button
+                                  className="btn-small btn-primary btn"
+                                  onClick={() =>
+                                    removeFromLine({
+                                      positionId: position.id,
+                                      lineId: position.lineId,
+                                    })
+                                  }
+                                  disabled={isLineLoading || isRemoving}
+                                >
+                                  Done
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </ul>
           </div>

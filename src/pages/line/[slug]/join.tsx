@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { NavLayout } from "../../../client/layouts/NavLayout";
 import { trpc } from "../../../utils/trpc";
-import { useLocalLineState } from "../../../client/localLineState";
+import { useLocalLine } from "../../../client/localLineState";
 
 type Inputs = {
   name: string;
@@ -24,7 +24,7 @@ const Join: NextPage = () => {
     },
     { enabled: !!slug },
   );
-  const { joinLine } = useLocalLineState({ lineId: line?.id });
+  const { joinLine } = useLocalLine({ lineId: line?.id });
 
   // prevent owners from trying to join the line
   useEffect(() => {

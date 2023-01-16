@@ -5,10 +5,11 @@ interface LocalLineStateProps {
   lineId?: string;
 }
 
-type Position = RouterOutputs["line"]["join"];
+export type Position = RouterOutputs["line"]["join"];
 
-export const useLocalLineState = ({ lineId }: LocalLineStateProps) => {
+export const useLocalLine = ({ lineId }: LocalLineStateProps) => {
   const [clientPositions, setClientPositions] = useState<Position[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const savedString = localStorage.getItem("clientPositions");
@@ -16,7 +17,10 @@ export const useLocalLineState = ({ lineId }: LocalLineStateProps) => {
       try {
         const parsed = JSON.parse(savedString) as Position[];
         setClientPositions(parsed);
-      } catch (e) {}
+      } catch (e) {
+      } finally {
+        setHydrated(true);
+      }
     }
   }, []);
 
@@ -24,10 +28,9 @@ export const useLocalLineState = ({ lineId }: LocalLineStateProps) => {
 
   const joinLine = useCallback(
     (p: Position) => {
-      console.log({ isInLine });
       if (!isInLine) {
-        setClientPositions((prevPositions) => {
-          const next = [...prevPositions, p];
+        setClientPositions((prev) => {
+          const next = [...prev, p];
           localStorage.setItem("clientPositions", JSON.stringify(next));
           return next;
         });
@@ -39,12 +42,11 @@ export const useLocalLineState = ({ lineId }: LocalLineStateProps) => {
   const flushLines = useCallback((lineId: string, currentPositions: Position[]) => {
     const currentPositionIds = new Set(currentPositions.map((p) => p.id));
     setClientPositions((prevPositions) => {
-      console.log(currentPositionIds, prevPositions);
       const next = prevPositions.filter((p) => p.lineId !== lineId || currentPositionIds.has(p.id));
       localStorage.setItem("clientPositions", JSON.stringify(next));
       return next;
     });
   }, []);
 
-  return { isInLine, joinLine, flushLines };
+  return { isInLine, joinLine, flushLines, hydrated };
 };

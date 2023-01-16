@@ -20,7 +20,11 @@ export const lineRouter = router({
   getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ ctx, input }) => {
     const line = await ctx.prisma.line.findUnique({
       where: { slug: input.slug },
-      include: { positions: true },
+      include: {
+        positions: {
+          orderBy: { rank: "asc" },
+        },
+      },
     });
     if (!line) {
       throw new TRPCError({ code: "NOT_FOUND" });
@@ -77,8 +81,46 @@ export const lineRouter = router({
             lineId: existingLine.id,
             rank: line.lastInLineRank - 1,
           },
+          include: { line: true },
         });
       });
+      const response = await ctx.pusher.trigger(existingLine.id, "position-added", {
+        msg: "removed",
+      });
+      if (!response.ok) {
+        // log here that we failed to update clients in real time
+      }
       return createdPosition;
     }),
+
+  removeFromLine: publicProcedure
+    .input(
+      z.object({ positionId: z.string(), lineId: z.string(), password: z.string().optional() }),
+    )
+    .mutation(
+      async ({ ctx: { session, pusher, prisma }, input: { positionId, lineId, password } }) => {
+        const line = await prisma.line.findUnique({
+          where: {
+            id: lineId,
+          },
+        });
+        if (!line || (line.ownerId !== session?.user?.id && line.password !== password)) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        await prisma.position.delete({
+          where: {
+            id: positionId,
+          },
+        });
+        const newLine = await prisma.line.findUnique({
+          where: { id: lineId },
+          include: { positions: true },
+        });
+        const response = await pusher.trigger(lineId, "position-removed", newLine);
+        if (!response.ok) {
+          // log here that we failed to update clients in real time
+        }
+        return newLine;
+      },
+    ),
 });

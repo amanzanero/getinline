@@ -15,10 +15,31 @@ const Home: NextPage = () => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <NavLayout>
-        <main className="flex justify-center py-5">
+        <main className="flex w-full justify-center py-5">
           <Link href="/create">
             <button className="btn">Create a Line</button>
           </Link>
+          <h1>Lines you are a member of</h1>
+          <div className="overflow-x-auto">
+            <table className="table w-full">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Name</th>
+                  <th>Job</th>
+                  <th>Favorite Color</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="hover">
+                  <th>1</th>
+                  <td>Cy Ganderton</td>
+                  <td>Quality Control Specialist</td>
+                  <td>Blue</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </main>
       </NavLayout>
     </>

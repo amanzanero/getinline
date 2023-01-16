@@ -71,10 +71,11 @@ model VerificationToken {
 // app stuff 
 
 model Line {
-  id      String @id @default(cuid())
-  name    String
-  owner   User   @relation("owner", fields: [ownerId], references: [id])
-  ownerId String
+  id       String  @id @default(cuid())
+  name     String
+  owner    User?   @relation("owner", fields: [ownerId], references: [id])
+  ownerId  String?
+  password String? // client side generated
 
   positions      Position[]
   lastInLineRank Int
