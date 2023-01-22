@@ -55,7 +55,7 @@ const Line = () => {
   usePusher({
     channelId: line?.id,
     enabled: true,
-    eventName: line?.isOwner ? "position-added" : "position-removed",
+    eventName: line?.isOwner === true ? "position-added" : "position-removed",
     onEvent(incomingData: Position[]) {
       if (incomingData) {
         utils.line.getBySlug.setData(

@@ -120,7 +120,7 @@ export const lineRouter = router({
       });
       const response = await pusher.trigger(
         lineId,
-        "position-added",
+        "position-removed",
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-extra-non-null-assertion
         newLine!!.positions,
       );
