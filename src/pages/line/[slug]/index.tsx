@@ -2,12 +2,13 @@
  * This is a protected page
  */
 
+import { type Position } from "@prisma/client";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { NavLayout } from "../../../client/layouts/NavLayout";
 import { useLocalLine } from "../../../client/localLineState";
 import { usePusher } from "../../../client/pusherWebClient";
-import { type RouterOutputs, trpc } from "../../../utils/trpc";
+import { trpc } from "../../../utils/trpc";
 
 const Line = () => {
   const router = useRouter();
@@ -55,11 +56,15 @@ const Line = () => {
     channelId: line?.id,
     enabled: true,
     eventName: line?.isOwner ? "position-added" : "position-removed",
-    onEvent(incomingData: RouterOutputs["line"]["removeFromLine"]) {
+    onEvent(incomingData: Position[]) {
       if (incomingData) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        utils.line.getBySlug.setData({ slug: slug as string }, (incomingData || undefined) as any);
-        flushLines(incomingData.id, incomingData.positions);
+        utils.line.getBySlug.setData(
+          { slug: slug as string },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion
+          { ...line!, positions: incomingData },
+        );
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        flushLines(line!.id, incomingData);
       }
     },
   });

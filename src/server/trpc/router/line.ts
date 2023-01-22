@@ -84,8 +84,13 @@ export const lineRouter = router({
         where: { id: createdPosition.lineId },
         include: { positions: true },
       });
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-extra-non-null-assertion
-      const response = await ctx.pusher.trigger(newLine!!.id, "position-added", newLine);
+      const response = await ctx.pusher.trigger(
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-extra-non-null-assertion
+        newLine!!.id,
+        "position-added",
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-extra-non-null-assertion
+        newLine!!.positions,
+      );
       if (!response.ok) {
         // TODO: log here that we failed to update clients in real time
       }
@@ -113,7 +118,12 @@ export const lineRouter = router({
         where: { id: lineId },
         include: { positions: true },
       });
-      const response = await pusher.trigger(lineId, "position-removed", newLine);
+      const response = await pusher.trigger(
+        lineId,
+        "position-added",
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-extra-non-null-assertion
+        newLine!!.positions,
+      );
       if (!response.ok) {
         // TODO: log here that we failed to update clients in real time
       }
