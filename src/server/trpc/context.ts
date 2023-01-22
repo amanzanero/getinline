@@ -1,13 +1,14 @@
 import { type inferAsyncReturnType } from "@trpc/server";
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
-import { type Session } from "next-auth";
+import cookie from "cookie";
 
-import { getServerAuthSession } from "../common/get-server-auth-session";
 import { prisma } from "../db/client";
 import { pusher } from "../pusherServer";
+import { env } from "../../env/server.mjs";
 
 type CreateContextOptions = {
-  session: Session | null;
+  setCookie: (name: string, value: string) => void;
+  cookies: Record<string, string>;
 };
 
 /** Use this helper for:
@@ -17,7 +18,7 @@ type CreateContextOptions = {
  **/
 export const createContextInner = async (opts: CreateContextOptions) => {
   return {
-    session: opts.session,
+    ...opts,
     prisma,
     pusher,
   };
@@ -31,10 +32,21 @@ export const createContext = async (opts: CreateNextContextOptions) => {
   const { req, res } = opts;
 
   // Get the session from the server using the unstable_getServerSession wrapper function
-  const session = await getServerAuthSession({ req, res });
+
+  const cookies = cookie.parse(req.headers.cookie || "");
 
   return await createContextInner({
-    session,
+    cookies,
+    setCookie(name, value) {
+      res.setHeader(
+        "Set-Cookie",
+        cookie.serialize(name, value, {
+          httpOnly: true,
+          secure: env.NODE_ENV === "production",
+          sameSite: true,
+        }),
+      );
+    },
   });
 };
 

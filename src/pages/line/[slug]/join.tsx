@@ -1,5 +1,4 @@
 import type { NextPage } from "next";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
@@ -17,8 +16,11 @@ type Inputs = {
 const Join: NextPage = () => {
   const router = useRouter();
   const { slug } = router.query;
-  const { status, data: session } = useSession({ required: false });
-  const { data: line, error } = trpc.line.getBySlug.useQuery(
+  const {
+    data: line,
+    isLoading: isLineLoading,
+    error,
+  } = trpc.line.getBySlug.useQuery(
     {
       slug: slug as string,
     },
@@ -28,19 +30,14 @@ const Join: NextPage = () => {
 
   // prevent owners from trying to join the line
   useEffect(() => {
-    if (
-      status === "authenticated" &&
-      !!session.user &&
-      !!line &&
-      line.ownerId === session.user.id
-    ) {
+    if (!!line && line.isOwner) {
       router.push(`/line/${line.slug}`);
     }
-  }, [status, line, router, session]);
+  }, [line, router]);
 
   const {
     mutate,
-    isLoading,
+    isLoading: isJoiningLine,
     error: mutationError,
   } = trpc.line.join.useMutation({
     onSuccess: (p) => {
@@ -70,7 +67,7 @@ const Join: NextPage = () => {
       } else {
         return <div>whoops something went wrong</div>;
       }
-    } else if (status !== "unauthenticated" || !line) {
+    } else if (!line) {
       return <div>loading...</div>;
     } else {
       return (
@@ -121,7 +118,7 @@ const Join: NextPage = () => {
               className="btn mt-4 w-full max-w-xs"
               value="Join"
               type="submit"
-              disabled={isLoading || !isValid}
+              disabled={isJoiningLine || isLineLoading || !isValid}
             />
             {mutationError && (
               <div className="w-full">

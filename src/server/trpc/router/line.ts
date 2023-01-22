@@ -1,20 +1,33 @@
+import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { nanoid } from "../../common/nanoid";
-import { router, protectedProcedure, publicProcedure } from "../trpc";
+import { router, publicProcedure } from "../trpc";
+import { linePassCookieName, omit, ownsLine } from "../../../utils/lineUtils";
+
+const generatePassword = (
+  length = 20,
+  wishlist = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz~!@-#$",
+) =>
+  Array.from(crypto.getRandomValues(new Uint32Array(length)))
+    .map((x) => wishlist[x % wishlist.length])
+    .join("");
 
 export const lineRouter = router({
-  create: protectedProcedure
+  create: publicProcedure
     .input(z.object({ name: z.string().min(2) }))
     .mutation(async ({ ctx, input }) => {
-      return await ctx.prisma.line.create({
+      const randomPassword = generatePassword();
+      const newLine = await ctx.prisma.line.create({
         data: {
           name: input.name,
-          ownerId: ctx.session.user.id,
           lastInLineRank: 0,
           slug: nanoid(),
+          password: randomPassword,
         },
       });
+      ctx.setCookie(linePassCookieName(newLine), randomPassword);
+      return { ...omit(newLine, "password"), isOwner: true };
     }),
 
   getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ ctx, input }) => {
@@ -29,7 +42,8 @@ export const lineRouter = router({
     if (!line) {
       throw new TRPCError({ code: "NOT_FOUND" });
     }
-    return line;
+    const isOwner = line.password === ctx.cookies[linePassCookieName(line)];
+    return { ...omit(line, "password"), isOwner };
   }),
 
   join: publicProcedure
@@ -41,33 +55,16 @@ export const lineRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const existingLine = await ctx.prisma.line.findUnique({
-        where: { slug: input.slug },
-      });
-      if (!existingLine) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-      const existingPosition = await ctx.prisma.position.findUnique({
-        where: {
-          lineId_phoneNumber: {
-            lineId: existingLine.id,
-            phoneNumber: input.phoneNumber,
-          },
-        },
-      });
-
-      if (!!existingPosition) {
-        return existingPosition;
-      }
       const createdPosition = await ctx.prisma.$transaction(async (tx) => {
         const line = await tx.line.update({
-          where: { id: existingLine.id },
+          where: { slug: input.slug },
           data: {
             lastInLineRank: {
               increment: 1,
             },
           },
           select: {
+            id: true,
             lastInLineRank: true,
           },
         });
@@ -78,49 +75,49 @@ export const lineRouter = router({
           data: {
             name: input.name,
             phoneNumber: input.phoneNumber,
-            lineId: existingLine.id,
+            lineId: line.id,
             rank: line.lastInLineRank - 1,
           },
-          include: { line: true },
         });
       });
-      const response = await ctx.pusher.trigger(existingLine.id, "position-added", {
-        msg: "removed",
+      const newLine = await ctx.prisma.line.findUnique({
+        where: { id: createdPosition.lineId },
+        include: { positions: true },
       });
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-extra-non-null-assertion
+      const response = await ctx.pusher.trigger(newLine!!.id, "position-added", newLine);
       if (!response.ok) {
-        // log here that we failed to update clients in real time
+        // TODO: log here that we failed to update clients in real time
       }
       return createdPosition;
     }),
 
   removeFromLine: publicProcedure
-    .input(
-      z.object({ positionId: z.string(), lineId: z.string(), password: z.string().optional() }),
-    )
-    .mutation(
-      async ({ ctx: { session, pusher, prisma }, input: { positionId, lineId, password } }) => {
-        const line = await prisma.line.findUnique({
-          where: {
-            id: lineId,
-          },
-        });
-        if (!line || (line.ownerId !== session?.user?.id && line.password !== password)) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        await prisma.position.delete({
-          where: {
-            id: positionId,
-          },
-        });
-        const newLine = await prisma.line.findUnique({
-          where: { id: lineId },
-          include: { positions: true },
-        });
-        const response = await pusher.trigger(lineId, "position-removed", newLine);
-        if (!response.ok) {
-          // log here that we failed to update clients in real time
-        }
-        return newLine;
-      },
-    ),
+    .input(z.object({ positionId: z.string(), lineId: z.string() }))
+    .mutation(async ({ ctx: { pusher, prisma, cookies }, input: { positionId, lineId } }) => {
+      const line = await prisma.line.findUnique({
+        where: {
+          id: lineId,
+        },
+      });
+      const isOwner = !!line && ownsLine(line, cookies);
+      if (!isOwner) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await prisma.position.delete({
+        where: {
+          id: positionId,
+        },
+      });
+      const newLine = await prisma.line.findUnique({
+        where: { id: lineId },
+        include: { positions: true },
+      });
+      const response = await pusher.trigger(lineId, "position-removed", newLine);
+      if (!response.ok) {
+        // TODO: log here that we failed to update clients in real time
+      }
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-extra-non-null-assertion
+      return { ...omit(newLine!!, "password"), isOwner };
+    }),
 });

@@ -2,21 +2,18 @@
  * This is a protected page
  */
 
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
 import { NavLayout } from "../../../client/layouts/NavLayout";
 import { useLocalLine } from "../../../client/localLineState";
 import { usePusher } from "../../../client/pusherWebClient";
-import { trpc } from "../../../utils/trpc";
+import { type RouterOutputs, trpc } from "../../../utils/trpc";
 
 const Line = () => {
   const router = useRouter();
   const { slug } = router.query;
   const utils = trpc.useContext();
 
-  const { data: session, status } = useSession({ required: false });
   // query
   const {
     data: line,
@@ -30,7 +27,6 @@ const Line = () => {
       enabled: !!slug,
       onSuccess(data) {
         if (data) {
-          console.log({ data });
           flushLines(data.id, data.positions);
         }
       },
@@ -42,6 +38,7 @@ const Line = () => {
   // mutation
   const { mutate: removeFromLine, isLoading: isRemoving } = trpc.line.removeFromLine.useMutation({
     onMutate(vars) {
+      // optimistic update
       if (line) {
         utils.line.getBySlug.setData(
           { slug: slug as string },
@@ -54,16 +51,16 @@ const Line = () => {
     },
   });
 
-  const isOwner = line?.ownerId === session?.user?.id;
-
   usePusher({
     channelId: line?.id,
     enabled: true,
-    eventName: isOwner ? "position-added" : "position-removed",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
-    onEvent(_incomingData: any) {
-      utils.line.getBySlug.invalidate();
-      console.log({ _incomingData });
+    eventName: line?.isOwner ? "position-added" : "position-removed",
+    onEvent(incomingData: RouterOutputs["line"]["removeFromLine"]) {
+      if (incomingData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        utils.line.getBySlug.setData({ slug: slug as string }, (incomingData || undefined) as any);
+        flushLines(incomingData.id, incomingData.positions);
+      }
     },
   });
 
@@ -74,7 +71,7 @@ const Line = () => {
       } else {
         return <div>whoops something went wrong</div>;
       }
-    } else if (status === "loading" || !line) {
+    } else if (isLineLoading || !line) {
       return <div>loading...</div>;
     } else {
       return (
@@ -83,7 +80,7 @@ const Line = () => {
             Virtual line: <span className="font-bold">{line.name}</span>
           </h1>
           <div>
-            {!isOwner && !isInLine && (
+            {!line.isOwner && !isInLine && (
               <Link href={`/line/${line.slug}/join`}>
                 <button className="btn-secondary btn mt-3 sm:mt-5">Join the line</button>
               </Link>
@@ -100,7 +97,7 @@ const Line = () => {
                         <th>Place in line</th>
                         <th>Name</th>
                         <th># People</th>
-                        {isOwner && <th></th>}
+                        {line.isOwner && <th></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -109,7 +106,7 @@ const Line = () => {
                           <th>{i + 1}</th>
                           <td>{position.name}</td>
                           <td>1</td>
-                          {isOwner && (
+                          {line.isOwner && (
                             <td>
                               {i === 0 && (
                                 <button

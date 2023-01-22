@@ -18,7 +18,6 @@ export const usePusher = ({ channelId, enabled, eventName, onEvent }: PusherProp
   useEffect(() => {
     const configureChannel = () => {
       if (channelId && enabled) {
-        console.log("subscribing");
         const newChannel = pusher.subscribe(channelId);
         newChannel.bind(eventName, onEvent);
       }
@@ -36,7 +35,6 @@ export const usePusher = ({ channelId, enabled, eventName, onEvent }: PusherProp
     });
 
     return () => {
-      console.log("unsubscribing");
       pusher.unbind_all();
     };
   }, [enabled, channelId, eventName, onEvent]);
